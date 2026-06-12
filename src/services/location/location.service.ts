@@ -1,14 +1,14 @@
-import {Platform} from 'react-native';
 import Geolocation from 'react-native-geolocation-service';
 import {
   check,
   openSettings,
-  PERMISSIONS,
   request,
   RESULTS,
   type Permission,
   type PermissionStatus,
 } from 'react-native-permissions';
+
+import {LOCATION_PERMISSIONS} from '../../config/permissions';
 
 export type LocationPermissionResult = {
   granted: boolean;
@@ -23,16 +23,8 @@ export type CurrentLocation = {
   timestamp: number;
 };
 
-const getPlatformLocationPermission = (): Permission | null => {
-  if (Platform.OS === 'android') {
-    return PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION;
-  }
-
-  if (Platform.OS === 'ios') {
-    return PERMISSIONS.IOS.LOCATION_WHEN_IN_USE;
-  }
-
-  return null;
+const getPrimaryLocationPermission = (): Permission | null => {
+  return LOCATION_PERMISSIONS[0] ?? null;
 };
 
 const isGrantedStatus = (status: PermissionStatus): boolean => {
@@ -59,7 +51,7 @@ const mapPermissionResult = (
 
 export const locationService = {
   async checkPermission(): Promise<LocationPermissionResult> {
-    const permission = getPlatformLocationPermission();
+    const permission = getPrimaryLocationPermission();
 
     if (!permission) {
       return mapPermissionResult('unsupported');
@@ -71,7 +63,7 @@ export const locationService = {
   },
 
   async requestPermission(): Promise<LocationPermissionResult> {
-    const permission = getPlatformLocationPermission();
+    const permission = getPrimaryLocationPermission();
 
     if (!permission) {
       return mapPermissionResult('unsupported');
