@@ -1,15 +1,24 @@
-import {Platform} from 'react-native';
 import messaging, {
   type FirebaseMessagingTypes,
 } from '@react-native-firebase/messaging';
+import {
+  check,
+  request,
+  RESULTS,
+  type PermissionStatus,
+} from 'react-native-permissions';
 
 import {PLATFORMS, STORAGE_KEYS, type DevicePlatform} from '../../config/constants';
+import {
+  ANDROID_NOTIFICATION_PERMISSION,
+  isAndroid,
+} from '../../config/permissions';
 import {notificationsApi, type UserDevice} from '../api';
 import {appStorage} from '../storage/appStorage';
 
 export type PushPermissionResult = {
   granted: boolean;
-  status: number;
+  status: number | PermissionStatus | 'unsupported';
 };
 
 export type PushMessageHandler = (
@@ -23,12 +32,63 @@ const isAuthorizedStatus = (status: number): boolean => {
   );
 };
 
-const getDevicePlatform = (): DevicePlatform => {
-  return Platform.OS === 'ios' ? PLATFORMS.IOS : PLATFORMS.ANDROID;
+const isGrantedPermissionStatus = (status: PermissionStatus): boolean => {
+  return status === RESULTS.GRANTED || status === RESULTS.LIMITED;
 };
+
+const getDevicePlatform = (): DevicePlatform => {
+  return isAndroid ? PLATFORMS.ANDROID : PLATFORMS.IOS;
+};
+
+const requestAndroidNotificationPermission =
+  async (): Promise<PushPermissionResult | null> => {
+    if (!isAndroid) {
+      return null;
+    }
+
+    if (!ANDROID_NOTIFICATION_PERMISSION) {
+      return {
+        granted: false,
+        status: 'unsupported',
+      };
+    }
+
+    const currentStatus = await check(ANDROID_NOTIFICATION_PERMISSION);
+
+    if (isGrantedPermissionStatus(currentStatus)) {
+      return null;
+    }
+
+    if (
+      currentStatus === RESULTS.BLOCKED ||
+      currentStatus === RESULTS.UNAVAILABLE
+    ) {
+      return {
+        granted: false,
+        status: currentStatus,
+      };
+    }
+
+    const requestedStatus = await request(ANDROID_NOTIFICATION_PERMISSION);
+
+    if (!isGrantedPermissionStatus(requestedStatus)) {
+      return {
+        granted: false,
+        status: requestedStatus,
+      };
+    }
+
+    return null;
+  };
 
 export const pushService = {
   async requestPermission(): Promise<PushPermissionResult> {
+    const androidPermissionResult = await requestAndroidNotificationPermission();
+
+    if (androidPermissionResult) {
+      return androidPermissionResult;
+    }
+
     const status = await messaging().requestPermission();
 
     return {
